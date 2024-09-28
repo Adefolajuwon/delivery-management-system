@@ -1,10 +1,14 @@
 package main
 
 import (
+	"github.com/Adefolajuwon/delivery-management-system/initializers"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
 
+func init() {
+
+}
 func main() {
 	router := gin.Default()
 
