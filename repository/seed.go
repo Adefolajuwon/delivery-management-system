@@ -63,7 +63,6 @@ func SeedDatabase(db *gorm.DB) {
 					DeliveryAddress: addresses[r.Intn(len(addresses))], // Use the local random generator
 					DestinationLat:  getRandomLatitude(),               // Assuming this function generates random latitudes
 					DestinationLong: getRandomLongitude(),              // Assuming this function generates random longitudes
-					AssignedAgentID: agent.AgentID,                     // Reference the agent's auto-incrementing ID
 					WarehouseID:     warehouse.WarehouseID,             // Reference the warehouse's auto-incrementing ID
 				}
 				if err := db.Create(&order).Error; err != nil {

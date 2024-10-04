@@ -1,37 +1,67 @@
 package services
 
 import (
+	"delivery-management-system/dtos"
 	"delivery-management-system/initializers"
-	models "delivery-management-system/models"
+	"delivery-management-system/models"
+	"log"
 )
 
-func allocate_orders(id string) {
-	agent_warehouse := initializers.DB.First(&models.Agent{}, id)
+func AllocateOrders() dtos.Response {
+	var agents []models.Agent
+	if err := initializers.DB.Find(&agents).Error; err != nil {
+		log.Println("Error fetching agents:", err)
+	}
+
+	var orders []models.Order
+	if err := initializers.DB.Where("assigned_agent_id IS NULL").Find(&orders).Error; err != nil {
+		log.Println("Error fetching orders:", err)
+	}
+
+	// Create a map to store agents grouped by their warehouse
+	agentsWarehouse := make(map[int][]models.Agent)
+	// Create a map to store orders grouped by their warehouse
+	ordersWarehouse := make(map[int][]models.Order)
+
+	// Group agents by their warehouse
+	for _, agent := range agents {
+		agentsWarehouse[agent.WarehouseID] = append(agentsWarehouse[agent.WarehouseID], agent)
+	}
+
+	// Group orders by their warehouse
+	for _, order := range orders {
+		ordersWarehouse[order.WarehouseID] = append(ordersWarehouse[order.WarehouseID], order)
+	}
+	err := InitializeAgentActivity(agents)
+	if err != nil {
+		log.Println("Error initializing activity log:", err)
+	}
+
+	/*Conditions to allocate orders to agents-
+	1. Agents cannot work for more than 10 hours in a day.
+	2. Agents cannot drive more than 100 km in a day.
+	*/
+	//Allocate orders to agents in the same warehouse wile considering conditions above
+	for warehouseID, orders := range ordersWarehouse {
+		//omoo wetin be "for loop" again
+
+	}
 
 }
 
 /*
-THE FLOW SHOULD BE SOMETHING LIKE THIS
-
-1. Get Agent ID:
-
-2. Retrieve Agent Information:
-   - Query the database to get details of the agent using the provided Agent ID.
-   - Check if the agent is active and eligible for allocation.
-
-3. Get Warehouse Information:
-   - Query the database to get the warehouse associated with the agent.
-     - This could involve joining tables if necessary (e.g., Agents table and Warehouses table).
-   - Retrieve the Warehouse ID, Name, and Location.
-   - Validate if the warehouse is operational and has capacity for more agents.
-
-4. Allocate order to Agents:
-   - Perform the allocation logic:
-     - Get all the unassigend orders in warehiuse
-     -
-     - Track the allocation date/time and any other relevant information.
-
-5. Return Response:
-   - Provide feedback to the user, confirming the allocation details.
-   - Return the success status and any additional relevant information.
-*/
+* The flow of the allocation logic for assigning 60 orders to all agents:
+*
+* 1. Fetch all agents from the database.
+* 2. Fetch all orders from the database
+* 2. For each agent, identify the warehouse they are assigned to.
+* 3. For each order, identify the warehouse they are assigned to.
+* 3. Generate or retrieve 60 orders that need to be assigned to that agent.
+* 4. For each order:
+*   - Assign the agent's ID to the order.
+*   - Assign the agent's warehouse ID to the order.
+*   - Randomly generate delivery addresses or pull from a pool of available addresses.
+*   - Set other necessary details like latitude/longitude of the delivery destination.
+* 5. Save each order in the database with the respective agent's ID and warehouse ID.
+* 6. Repeat for each agent until all orders are assigned.
+ */

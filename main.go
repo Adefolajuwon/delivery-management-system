@@ -1,7 +1,9 @@
 package main
 
 import (
+	"delivery-management-system/controller"
 	"delivery-management-system/initializers"
+
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -11,13 +13,14 @@ func init() {
 
 }
 func main() {
-	router := gin.Default()
+	X := gin.Default()
 
-	router.GET("/", func(c *gin.Context) {
+	X.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Hello, World!",
 		})
 	})
+	X.GET("/alloc", controllers.AllocateOrders)
 
-	router.Run(":8080")
+	X.Run(":8080")94-
 }
