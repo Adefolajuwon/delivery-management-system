@@ -22,5 +22,5 @@ func main() {
 	})
 	X.GET("/alloc", controllers.AllocateOrders)
 
-	X.Run(":8080")94-
+	X.Run(":8080")
 }

@@ -41,10 +41,28 @@ func AllocateOrders() dtos.Response {
 	1. Agents cannot work for more than 10 hours in a day.
 	2. Agents cannot drive more than 100 km in a day.
 	*/
+
+	/*      what orderwarehouse looks like
+	agentsWarehouse := map[int][]models.Agent{
+		1: { // WarehouseID = 1
+			{AgentID: 101, Name: "John Doe"},
+			{AgentID: 102, Name: "Jane Smith"},
+		},
+		2: { // WarehouseID = 2
+			{AgentID: 201, Name: "Bob Johnson"},
+			{AgentID: 203, Name: "Charlie Brown"},
+		},
+	}
+	*/
 	//Allocate orders to agents in the same warehouse wile considering conditions above
 	for warehouseID, orders := range ordersWarehouse {
 		//omoo wetin be "for loop" again
+        agentsInWarehouse := agentsWarehouse[warehouseID]
 
+        if len(agentsInWarehouse) == 0 {
+            log.Println("No agents found for warehouse:", warehouseID)
+            continue
+        }
 	}
 
 }
