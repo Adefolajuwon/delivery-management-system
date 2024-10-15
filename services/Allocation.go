@@ -1,10 +1,11 @@
 package services
 
 import (
-	// "delivery-management-system/dtos"
+	"delivery-management-system/dtos"
 	"delivery-management-system/initializers"
 	"delivery-management-system/models"
 	"log"
+	"delivery-management-system/helper"
 )
 
 func AllocateOrders() dtos.Response {
@@ -18,54 +19,87 @@ func AllocateOrders() dtos.Response {
 		log.Println("Error fetching orders:", err)
 	}
 
+	// Fetch warehouses from the correct model
+	var warehouses []models.Warehouse
+	if err := initializers.DB.Find(&warehouses).Error; err != nil {
+		log.Println("Error fetching warehouses:", err)
+	}
+
 	// Create a map to store agents grouped by their warehouse
-	agentsWarehouse := make(map[int][]models.Agent)
+	agentsInWarehouse := make(map[int][]models.Agent)
 	// Create a map to store orders grouped by their warehouse
-	ordersWarehouse := make(map[int][]models.Order)
+	ordersInWarehouse := make(map[int][]models.Order)
+	// Create a map to store warehouse lat/long by WarehouseID
+	warehouseLocation := make(map[int]struct {
+		Lat  float64
+		Long float64
+	})
 
 	// Group agents by their warehouse
 	for _, agent := range agents {
-		agentsWarehouse[agent.WarehouseID] = append(agentsWarehouse[agent.WarehouseID], agent)
+		agentsInWarehouse[agent.WarehouseID] = append(agentsInWarehouse[agent.WarehouseID], agent)
 	}
 
 	// Group orders by their warehouse
 	for _, order := range orders {
-		ordersWarehouse[order.WarehouseID] = append(ordersWarehouse[order.WarehouseID], order)
+		ordersInWarehouse[order.WarehouseID] = append(ordersInWarehouse[order.WarehouseID], order)
 	}
+
+	// Store warehouse lat/long in the map
+	for _, warehouse := range warehouses {
+		warehouseLocation[warehouse.WarehouseID] = struct {
+			Lat  float64
+			Long float64
+		}{
+			Lat:  warehouse.Latitude,
+			Long: warehouse.Longitude,
+		}
+	}
+
+	// Initialize agent activity
 	err := InitializeAgentActivity(agents)
 	if err != nil {
 		log.Println("Error initializing activity log:", err)
 	}
 
-	/*Conditions to allocate orders to agents-
-	1. Agents cannot work for more than 10 hours in a day.
-	2. Agents cannot drive more than 100 km in a day.
-	*/
+	// Allocate orders to agents while considering conditions
+	for warehouseID, orders := range ordersInWarehouse {
+		agentsByWarehouse := agentsInWarehouse[warehouseID]
 
-	/*      what orderwarehouse looks like
-	agentsWarehouse := map[int][]models.Agent{
-		1: { // WarehouseID = 1
-			{AgentID: 101, Name: "John Doe"},
-			{AgentID: 102, Name: "Jane Smith"},
-		},
-		2: { // WarehouseID = 2
-			{AgentID: 201, Name: "Bob Johnson"},
-			{AgentID: 203, Name: "Charlie Brown"},
-		},
+		// Get the current warehouse lat/long
+		warehouseLatLong, ok := warehouseLocation[warehouseID]
+		if !ok {
+			log.Println("Warehouse location not found for warehouse:", warehouseID)
+			continue
+		}
+
+		// Check if there are agents available in the warehouse
+		if len(agentsByWarehouse) == 0 {
+			log.Println("No agents found for warehouse:", warehouseID)
+			continue
+		}
+
+		// Assign orders to agents
+		ordersIndex := 0
+		for _, order := range orders {
+			lat := order.DestinationLat
+			long := order.DestinationLong
+
+			// Access warehouse lat/long
+			fmt.Printf("Warehouse ID: %d, Lat: %f, Long: %f\n", warehouseID, warehouseLatLong.Lat, warehouseLatLong.Long)
+
+			// Process order assignment logic here
+
+			// Update index for next order
+			ordersIndex++
+		}
 	}
-	*/
-	//Allocate orders to agents in the same warehouse wile considering conditions above
-	for warehouseID, orders := range ordersWarehouse {
-		//omoo wetin be "for loop" again
-        agentsInWarehouse := agentsWarehouse[warehouseID]
 
-        if len(agentsInWarehouse) == 0 {
-            log.Println("No agents found for warehouse:", warehouseID)
-            continue
-        }
-	}
-
+	log.Println("Order allocation completed.")
+	return dtos.Response{}
 }
+}
+
 
 /*
 * The flow of the allocation logic for assigning 60 orders to all agents:

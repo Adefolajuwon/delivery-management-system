@@ -24,6 +24,7 @@ var addresses = []string{
 }
 
 // Seed the database with initial data
+// Seed the database with initial data
 func SeedDatabase(db *gorm.DB) {
 	if db == nil {
 		log.Fatal("Database connection is nil. Cannot seed the database.")
@@ -37,8 +38,10 @@ func SeedDatabase(db *gorm.DB) {
 	// Seed 10 warehouses
 	for i := 1; i <= 10; i++ {
 		warehouse := models.Warehouse{
-			Name:     fmt.Sprintf("Warehouse %d", i),
-			Location: fmt.Sprintf("City Area %d", i),
+			Name:      fmt.Sprintf("Warehouse %d", i),
+			Location:  fmt.Sprintf("City Area %d", i),
+			Latitude:  getRandomLatitude(),  // Generate random latitude
+			Longitude: getRandomLongitude(), // Generate random longitude
 		}
 		if err := db.Create(&warehouse).Error; err != nil {
 			log.Printf("Error creating warehouse: %v\n", err)
@@ -48,9 +51,9 @@ func SeedDatabase(db *gorm.DB) {
 		// Seed 20 agents per warehouse
 		for j := 1; j <= 20; j++ {
 			agent := models.Agent{
-				Name:        agentNames[r.Intn(len(agentNames))],                            // Use the local random generator
-				Phone:       fmt.Sprintf("+91%d", r.Intn(9999999999-1000000000)+1000000000), // Random phone number
-				WarehouseID: warehouse.WarehouseID,                                          // Reference the warehouse's auto-incrementing ID
+				Name:        agentNames[r.Intn(len(agentNames))],
+				Phone:       fmt.Sprintf("+91%d", r.Intn(9999999999-1000000000)+1000000000),
+				WarehouseID: warehouse.WarehouseID,
 			}
 			if err := db.Create(&agent).Error; err != nil {
 				log.Printf("Error creating agent: %v\n", err)
@@ -60,10 +63,10 @@ func SeedDatabase(db *gorm.DB) {
 			// Seed 60 orders per agent
 			for k := 1; k <= 60; k++ {
 				order := models.Order{
-					DeliveryAddress: addresses[r.Intn(len(addresses))], // Use the local random generator
-					DestinationLat:  getRandomLatitude(),               // Assuming this function generates random latitudes
-					DestinationLong: getRandomLongitude(),              // Assuming this function generates random longitudes
-					WarehouseID:     warehouse.WarehouseID,             // Reference the warehouse's auto-incrementing ID
+					DeliveryAddress: addresses[r.Intn(len(addresses))],
+					DestinationLat:  getRandomLatitude(),
+					DestinationLong: getRandomLongitude(),
+					WarehouseID:     warehouse.WarehouseID,
 				}
 				if err := db.Create(&order).Error; err != nil {
 					log.Printf("Error creating order: %v\n", err)
