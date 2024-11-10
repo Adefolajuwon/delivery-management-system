@@ -1,3 +1,8 @@
+package helper
+
+import (
+	"math"
+)
 
 const EarthRadius = 6371.0 // Earth's radius in kilometers
 

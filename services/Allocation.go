@@ -2,12 +2,14 @@ package services
 
 import (
 	"delivery-management-system/dtos"
+	"delivery-management-system/helper"
 	"delivery-management-system/initializers"
 	"delivery-management-system/models"
 	"log"
-	"delivery-management-system/helper"
+	"sort"
 )
 
+// AllocateOrders function that assigns the best agent to each order based on proximity and availability.
 func AllocateOrders() dtos.Response {
 	var agents []models.Agent
 	if err := initializers.DB.Find(&agents).Error; err != nil {
@@ -19,7 +21,6 @@ func AllocateOrders() dtos.Response {
 		log.Println("Error fetching orders:", err)
 	}
 
-	// Fetch warehouses from the correct model
 	var warehouses []models.Warehouse
 	if err := initializers.DB.Find(&warehouses).Error; err != nil {
 		log.Println("Error fetching warehouses:", err)
@@ -29,7 +30,7 @@ func AllocateOrders() dtos.Response {
 	agentsInWarehouse := make(map[int][]models.Agent)
 	// Create a map to store orders grouped by their warehouse
 	ordersInWarehouse := make(map[int][]models.Order)
-	// Create a map to store warehouse lat/long by WarehouseID
+	// Create a map to store warehouse location data
 	warehouseLocation := make(map[int]struct {
 		Lat  float64
 		Long float64
@@ -45,7 +46,7 @@ func AllocateOrders() dtos.Response {
 		ordersInWarehouse[order.WarehouseID] = append(ordersInWarehouse[order.WarehouseID], order)
 	}
 
-	// Store warehouse lat/long in the map
+	// Store latitude and longitude for each warehouse
 	for _, warehouse := range warehouses {
 		warehouseLocation[warehouse.WarehouseID] = struct {
 			Lat  float64
@@ -56,22 +57,9 @@ func AllocateOrders() dtos.Response {
 		}
 	}
 
-	// Initialize agent activity
-	err := InitializeAgentActivity(agents)
-	if err != nil {
-		log.Println("Error initializing activity log:", err)
-	}
-
-	// Allocate orders to agents while considering conditions
+	// Loop through each warehouse and assign orders to agents
 	for warehouseID, orders := range ordersInWarehouse {
 		agentsByWarehouse := agentsInWarehouse[warehouseID]
-
-		// Get the current warehouse lat/long
-		warehouseLatLong, ok := warehouseLocation[warehouseID]
-		if !ok {
-			log.Println("Warehouse location not found for warehouse:", warehouseID)
-			continue
-		}
 
 		// Check if there are agents available in the warehouse
 		if len(agentsByWarehouse) == 0 {
@@ -79,29 +67,98 @@ func AllocateOrders() dtos.Response {
 			continue
 		}
 
-		// Assign orders to agents
-		ordersIndex := 0
+		// Get the warehouse's lat and long
+		warehouseLatLong := warehouseLocation[warehouseID]
+
+		// Step 1: Sort the orders based on Haversine distance
+		sort.Slice(orders, func(i, j int) bool {
+			lat1, long1 := orders[i].DestinationLat, orders[i].DestinationLong
+			lat2, long2 := orders[j].DestinationLat, orders[j].DestinationLong
+
+			// Calculate the distance of both orders from the warehouse
+			dist1 := helper.Haversine(warehouseLatLong.Lat, warehouseLatLong.Long, lat1, long1)
+			dist2 := helper.Haversine(warehouseLatLong.Lat, warehouseLatLong.Long, lat2, long2)
+
+			// Sort in ascending order of distance (i.e., closer orders first)
+			return dist1 < dist2
+		})
+
+		// Step 2: Assign orders to the best available agent
 		for _, order := range orders {
-			lat := order.DestinationLat
-			long := order.DestinationLong
+			bestAgent := findBestAgent(agentsByWarehouse, warehouseLatLong, order)
 
-			// Access warehouse lat/long
-			fmt.Printf("Warehouse ID: %d, Lat: %f, Long: %f\n", warehouseID, warehouseLatLong.Lat, warehouseLatLong.Long)
+			if bestAgent != nil {
+				// Assign the order to the best agent
+				order.AssignedAgentID = bestAgent.AgentID
+				initializers.DB.Save(&order)
 
-			// Process order assignment logic here
-
-			// Update index for next order
-			ordersIndex++
+				// Update the agent's workload (distance and working hours)
+				bestAgent.Workload += calculateOrderTimeAndDistance(order)
+				initializers.DB.Save(&bestAgent)
+			} else {
+				log.Println("No suitable agent available for order:", order.OrderID)
+			}
 		}
 	}
 
 	log.Println("Order allocation completed.")
 	return dtos.Response{}
 }
+
+// Function to find the best agent for an order
+func findBestAgent(agents []models.Agent, warehouseLatLong struct{ Lat, Long float64 }, order models.Order) *models.Agent {
+	// Sort agents based on proximity to the order's destination
+	sort.Slice(agents, func(i, j int) bool {
+		agent1 := agents[i]
+		agent2 := agents[j]
+
+		// Calculate the distance between agent's current location and the order destination
+		dist1 := helper.Haversine(agent1.Latitude, agent1.Longitude, order.DestinationLat, order.DestinationLong)
+		dist2 := helper.Haversine(agent2.Latitude, agent2.Longitude, order.DestinationLat, order.DestinationLong)
+
+		return dist1 < dist2
+	})
+
+	// Iterate over the sorted agents and find one who meets the workload and distance criteria
+	for _, agent := range agents {
+		// Check if the agent can handle more work (e.g., max hours and distance)
+		if agent.Workload < maxDailyWorkload && agent.DailyDistance+calculateOrderDistance(agent, order) <= maxDailyDistance {
+			return &agent
+		}
+	}
+
+	// Return nil if no suitable agent is found
+	return nil
 }
 
+// Utility function to calculate the distance of an order
+func calculateOrderDistance(agent models.Agent, order models.Order) float64 {
+	return helper.Haversine(agent.Latitude, agent.Longitude, order.DestinationLat, order.DestinationLong)
+}
+
+// Utility function to calculate the time and distance of an order
+func calculateOrderTimeAndDistance(order models.Order) float64 {
+	// Assuming some logic to calculate the time taken for the order based on the distance
+	return order.Distance * timePerKm // Hypothetical time calculation
+}
 
 /*
+	log.Println("Order allocation completed.")
+	return dtos.Response{}
+}
+
+// Function to find the best agent for an order
+func findBestAgent(agents []models.Agent, warehouseLatLong struct{ Lat, Long float64 }, order models.Order) *models.Agent {
+	// Sort agents based on proximity to the order's destination
+	sort.Slice(agents, func(i, j int) bool {
+		agent1 := agents[i]
+		agent2 := agents[j]
+
+		// Calculate the distance between agent's current location and the order destination
+		dist1 := helper.Haversine(agent1.Latitude, agent1.Longitude, order.DestinationLat, order.DestinationLong)
+		dist2 := helper.Haversine(agent2.Latitude, agent2.Longitude, order.DestinationLat, order.DestinationLong)
+
+		return dist1 < dist2
 * The flow of the allocation logic for assigning 60 orders to all agents:
 *
 * 1. Fetch all agents from the database.
